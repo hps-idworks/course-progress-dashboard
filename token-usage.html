@@ -144,7 +144,7 @@
 
         <div class="chart-card">
             <h2>Monthly Spend Overview</h2>
-            <p class="chart-desc">Base subscription ($20/mo) + credit top-ups + free credits by month</p>
+            <p class="chart-desc">Base subscription ($20/mo) + credit top-ups + free credits by month (bars, left axis) · Credits purchased (line, right axis)</p>
             <div class="chart-wrap">
                 <canvas id="spendChart"></canvas>
             </div>
@@ -263,6 +263,21 @@
                         backgroundColor: '#aaaaaa',
                         borderRadius: 4,
                         borderSkipped: 'bottom',
+                    },
+                    {
+                        type: 'line',
+                        label: 'Credits Purchased',
+                        data: [null, null, null, null, 1250, 2500, 3000],
+                        yAxisID: 'y1',
+                        borderColor: '#1a3a5c',
+                        backgroundColor: '#1a3a5c',
+                        borderWidth: 2.5,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderWidth: 2.5,
+                        tension: 0,
+                        order: -1,
                     }
                 ]
             },
@@ -277,14 +292,20 @@
                             padding: 16,
                             usePointStyle: true,
                             pointStyleWidth: 12,
-                            filter: (legendItem) => legendItem.text !== 'Estimated Platform Cost'
+                            filter: (legendItem) => legendItem.text !== 'Estimated Platform Cost',
+                            sort: (a, b) => {
+                                const order = ['Free Credits', 'Base Subscription', 'Credit Top-Up', 'Credits Purchased'];
+                                return order.indexOf(a.text) - order.indexOf(b.text);
+                            }
                         }
                     },
                     tooltip: {
                         callbacks: {
-                            label: ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y}`,
+                            label: ctx => ctx.dataset.yAxisID === 'y1'
+                                ? ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} credits`
+                                : ` ${ctx.dataset.label}: $${ctx.parsed.y}`,
                             footer: items => {
-                                const paid = items.filter(i => i.dataset.label !== 'Free Credits').reduce((s, i) => s + i.parsed.y, 0);
+                                const paid = items.filter(i => i.dataset.label !== 'Free Credits' && i.dataset.yAxisID !== 'y1').reduce((s, i) => s + i.parsed.y, 0);
                                 return paid > 0 ? `Paid Total: $${paid}` : '';
                             }
                         }
@@ -304,9 +325,49 @@
                             font: { size: 12 }
                         },
                         grid: { color: '#eeeeee' }
+                    },
+                    y1: {
+                        position: 'right',
+                        stacked: false,
+                        beginAtZero: true,
+                        max: 4000,
+                        title: { display: true, text: 'Credits', font: { size: 12 }, color: '#1a3a5c' },
+                        ticks: {
+                            callback: val => val.toLocaleString(),
+                            font: { size: 12 },
+                            color: '#1a3a5c'
+                        },
+                        grid: { drawOnChartArea: false }
                     }
                 }
-            }
+            },
+            plugins: [{
+                id: 'creditLabels',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    chart.data.datasets.forEach((ds, i) => {
+                        if (ds.yAxisID !== 'y1' || !chart.isDatasetVisible(i)) return;
+                        chart.getDatasetMeta(i).data.forEach((pt, j) => {
+                            const v = ds.data[j];
+                            if (v == null) return;
+                            const text = `${v.toLocaleString()} cr`;
+                            ctx.save();
+                            ctx.font = '600 12px sans-serif';
+                            const w = ctx.measureText(text).width + 10, h = 18;
+                            const x = pt.x - w / 2, y = pt.y - 12 - h;
+                            ctx.fillStyle = '#1a3a5c';
+                            ctx.beginPath();
+                            ctx.roundRect(x, y, w, h, 4);
+                            ctx.fill();
+                            ctx.fillStyle = '#ffffff';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(text, pt.x, y + h / 2);
+                            ctx.restore();
+                        });
+                    });
+                }
+            }]
         });
     </script>
 
